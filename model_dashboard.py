@@ -33,7 +33,7 @@ engine = create_engine("mysql+mysqlconnector://root:9095@localhost/rapido")
 
 st.set_page_config(
     page_title = "RAPIDO MOBILITY INSIGHTS",
-    page_icon = ":material/local_taxi:"
+    page_icon = "🚕"
 )
 
 def fetch_data(query, params = None):
@@ -50,11 +50,11 @@ def local_css(file_name):
         st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)        
 local_css("style.css")
 
-st.markdown('<p class="main-header">RAPIDO MOBILITY INSIGHTS</p>', unsafe_allow_html=True)
+st.markdown('<p class="main-header">🚕 RAPIDO MOBILITY INSIGHTS</p>', unsafe_allow_html=True)
 
 [tab_fare, tab_driver, tab_ride_outcome, tab_customer, tab_visulas] = st.tabs(
     ["FARE PREDICTION", "DRIVER DELAY PREDICTION",
-    "RIDE OUTCOME PREDICTION", "CUSTOMER CANCEL PREDICTION", "VISULAS"]
+    "RIDE OUTCOME PREDICTION", "CUSTOMER CANCEL PREDICTION", "VISUAL INSIGHTS"]
     )
 
 ## FARE PREDICTION ##:
@@ -112,22 +112,29 @@ with tab_fare:
 
     fare_prediction_model = joblib.load("fare_sgd.pkl")
 
-    y_pred_fare = pd.DataFrame(
+    y_pred = pd.DataFrame(
         fare_prediction_model.predict(X_test_final), columns = y_test.columns, index = X_test_final.index
         )
 
     R2_score_test = fare_prediction_model.score(X_test_final, y_test)
     R2_score_train = fare_prediction_model.score(X_train_final, y_train)
-    MAE = mean_absolute_error(y_pred_fare, y_test)
-    RMSE = root_mean_squared_error(y_pred_fare, y_test)
+    MAE = mean_absolute_error(y_pred, y_test)
+    RMSE = root_mean_squared_error(y_pred, y_test)
+    percentage_errors = np.abs(y_test - y_pred) / y_test
+    MdAPE = np.median(percentage_errors) * 100
+
 
     st.markdown('<p class="custom-subheader">FARE PREDICTION MODEL</p>', unsafe_allow_html=True)
-    st.markdown('<p class="custom-text">EVALUATION METRIX</p>', unsafe_allow_html=True)
+    st.markdown('<p class="custom-text">EVALUATION METRICS</p>', unsafe_allow_html=True)
     kpi_columns = st.columns(4)
     kpi_columns[0].metric(label = "R2 SCORE ON TEST DATA", value = f'{round(R2_score_test, 2)}')
     kpi_columns[1].metric(label = "R2 SCORE ON TRAIN DATA", value = f'{round(R2_score_train, 2)}')
     kpi_columns[2].metric(label = "MAE", value = f'{round(MAE, 2)} INR')
     kpi_columns[3].metric(label = "RMSE", value = f'{round(RMSE, 2)} INR')
+
+    st.markdown('<p class="custom-text">BUSINESS INSIGHT</p>', unsafe_allow_html=True)
+    kpi_columns = st.columns(1)
+    kpi_columns[0].metric(label = "MEDIAN ABSOLUTE PERCENTAGE ERROR", value = f'{round(MdAPE, 2)} %')
 
 ## DRIVER DELAY PREDICTION ##:
 with tab_driver:
@@ -190,32 +197,30 @@ with tab_driver:
     ## concatinate
     X_test_final = pd.concat([X_test_scaled, X_test_encoded], axis = 1)
 
+    features = ["driver_delay_rate", "avg_driver_rating","avg_pickup_delay_min", 
+     "driver_acceptance_rate", "hour_of_day", "ride_distance_km",
+     "surge_multiplier", "traffic_level_High", "estimated_ride_time_min",
+     "traffic_level_Low", "traffic_level_Medium"]
+
     driver_delay_prediction_model = joblib.load("driver_delay_logreg.pkl")
     y_pred = pd.DataFrame(
-        driver_delay_prediction_model.predict(X_test_final
-        [["driver_delay_rate", "driver_delay_flag",
-        "driver_delay_count", "driver_incomplete_rides",
-        "avg_pickup_delay_min"]]
-        ), columns = y_train.columns, index = X_test_final.index
+        driver_delay_prediction_model.predict(X_test_final[features]), 
+        columns = y_train.columns, index = X_test_final.index
         )
     
-    F1_score_train = driver_delay_prediction_model.score(X_train_final[[
-     "driver_delay_rate", "driver_delay_flag",
-     "driver_delay_count", "driver_incomplete_rides",
-     "avg_pickup_delay_min"
-     ]], y_train.values.ravel())
+    F1_score_train = driver_delay_prediction_model.score(
+        X_train_final[features], y_train.values.ravel()
+        )
     
-    F1_score_test = driver_delay_prediction_model.score(X_test_final[[
-     "driver_delay_rate", "driver_delay_flag",
-     "driver_delay_count", "driver_incomplete_rides",
-     "avg_pickup_delay_min"
-     ]], y_test.values.ravel())
+    F1_score_test = driver_delay_prediction_model.score(
+        X_test_final[features], y_test.values.ravel()
+        )
     
     st.markdown('<p class="custom-subheader">DRIVER DELAY PREDICTION MODEL</p>', unsafe_allow_html=True)
-    st.markdown('<p class="custom-text">EVALUATION METRIX</p>', unsafe_allow_html=True)
+    st.markdown('<p class="custom-text">EVALUATION METRICS</p>', unsafe_allow_html=True)
     kpi_columns = st.columns(2)
-    kpi_columns[0].metric(label = "F1 SCORE ON TRAIN DATA", value = f'{round(F1_score_train, 2)}')
-    kpi_columns[1].metric(label = "F1 SCORE ON TEST DATA", value = f'{round(F1_score_test, 2)}')
+    kpi_columns[0].metric(label = "F1 SCORE ON TRAIN DATA", value = f'{round(F1_score_train, 3)}')
+    kpi_columns[1].metric(label = "F1 SCORE ON TEST DATA", value = f'{round(F1_score_test, 3)}')
     
     classification_dict = classification_report(
         y_test, y_pred, target_names ={"no risk of delay": 0, "risk of delay": 1}, output_dict = True)
@@ -315,7 +320,7 @@ with tab_customer:
         ]], y_test.values.ravel())
     
     st.markdown('<p class="custom-subheader">CUSTOMER CANCEL PREDICTION MODEL</p>', unsafe_allow_html=True)
-    st.markdown('<p class="custom-text">EVALUATION METRIX</p>', unsafe_allow_html=True)
+    st.markdown('<p class="custom-text">EVALUATION METRICS</p>', unsafe_allow_html=True)
     kpi_columns = st.columns(2)
     kpi_columns[0].metric(label = "F1 SCORE ON TRAIN DATA", value = f'{round(F1_score_train, 2)}')
     kpi_columns[1].metric(label = "F1 SCORE ON TEST DATA", value = f'{round(F1_score_test, 2)}')
@@ -334,7 +339,8 @@ with tab_customer:
         columns = ["Predicted: No Risk", "Predicted: Risk"], 
         index = ["Actual: No Risk", "Actual: Risk"]
         ))
-    
+
+## RIDE OUTCOME PREDICTION ##    
 with tab_ride_outcome:
     ## import data from sql
     df = get_data("select * from combined_features")
@@ -423,7 +429,7 @@ with tab_ride_outcome:
         ]], y_test_encoded.values.ravel())
     
     st.markdown('<p class="custom-subheader">RIDE OUTCOME PREDICTION MODEL</p>', unsafe_allow_html=True)
-    st.markdown('<p class="custom-text">EVALUATION METRIX</p>', unsafe_allow_html=True)
+    st.markdown('<p class="custom-text">EVALUATION METRICS</p>', unsafe_allow_html=True)
     kpi_columns = st.columns(2)
     kpi_columns[0].metric(label = "F1 SCORE ON TRAIN DATA", value = f'{round(F1_score_train, 2)}')
     kpi_columns[1].metric(label = "F1 SCORE ON TEST DATA", value = f'{round(F1_score_test, 2)}')
@@ -539,7 +545,7 @@ with tab_visulas:
         where booking_status = 'Cancelled'
         group by weather_condition"""
         )
-        st.markdown('<p class="custom-text">CANCELLATIONS BY weather</p>', unsafe_allow_html=True)
+        st.markdown('<p class="custom-text">CANCELLATIONS BY WEATHER</p>', unsafe_allow_html=True)
         fig_cancel_weather = px.pie(
             cancel_weather_df, names = "weather_condition", values = "no_of_cancellations"
             )

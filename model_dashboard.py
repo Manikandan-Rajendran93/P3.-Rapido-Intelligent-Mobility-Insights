@@ -52,7 +52,7 @@ local_css("style.css")
 
 st.markdown('<p class="main-header">🚕 RAPIDO MOBILITY INSIGHTS</p>', unsafe_allow_html=True)
 
-[tab_fare, tab_driver, tab_ride_outcome, tab_customer, tab_visulas] = st.tabs(
+[tab_fare, tab_driver, tab_ride_outcome, tab_customer, tab_visuals] = st.tabs(
     ["FARE PREDICTION", "DRIVER DELAY PREDICTION",
     "RIDE OUTCOME PREDICTION", "CUSTOMER CANCEL PREDICTION", "VISUAL INSIGHTS"]
     )
@@ -67,53 +67,56 @@ with tab_fare:
 
     y = get_data("select booking_value from bookings")
 
-    # ## train test split:
+    # train test split:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 42)
 
-    ## PreProcessing Train data:
-
-    ## Encoding Categorical features
+    # PreProcessing Train data:
+    # Encoding Categorical features
+    categorical_features = ["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]
     OHE = OneHotEncoder(sparse_output = False)
-    X_train_ohe_array = OHE.fit_transform(
-        X_train[["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]]
-        )
+    X_train_ohe_array = OHE.fit_transform(X_train[categorical_features])
     X_train_encoded = pd.DataFrame(
-        X_train_ohe_array, columns = OHE.get_feature_names_out(), index = X_train.index
+        X_train_ohe_array, 
+        columns = OHE.get_feature_names_out(), 
+        index = X_train.index
         )
 
-    ## Scaling Numerical features:
-    
-    cols = ["ride_distance_km", "estimated_ride_time_min", "base_fare", "surge_multiplier"]
+    # Scaling Numerical features:
+    numerical_features = ["ride_distance_km", "estimated_ride_time_min", "base_fare", "surge_multiplier"]
     MMS = MinMaxScaler()
     X_train_scaled = pd.DataFrame(
-        MMS.fit_transform(X_train[cols]), columns = cols, index = X_train.index
+        MMS.fit_transform(X_train[numerical_features]), 
+        columns = numerical_features, 
+        index = X_train.index
         )
 
-    ## Concatinate encoded and scaled features together:
+    # Concatinate encoded and scaled features together:
     X_train_final = pd.concat([X_train_scaled, X_train_encoded], axis = 1)
 
-    ## Preprocessing Test data:
-
-    ## Encoding Categorical features
-    X_test_ohe_array = OHE.transform(
-        X_test[["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]]
-        )
+    # Preprocessing Test data:
+    # Encoding Categorical features
+    X_test_ohe_array = OHE.transform(X_test[categorical_features])
     X_test_encoded = pd.DataFrame(
-        X_test_ohe_array, columns = OHE.get_feature_names_out(), index = X_test.index
+        X_test_ohe_array, 
+        columns = OHE.get_feature_names_out(), 
+        index = X_test.index
         )
 
-    ## Scaling Numerical features:
+    # Scaling Numerical features:
     X_test_scaled = pd.DataFrame(
-        MMS.transform(X_test[cols]), columns = cols, index = X_test.index
+        MMS.transform(X_test[numerical_features]), 
+        columns = numerical_features, 
+        index = X_test.index
         )
 
-    ## Concatinate encoded and scaled features together:
+    # Concatinate encoded and scaled features together:
     X_test_final = pd.concat([X_test_scaled, X_test_encoded], axis = 1)
 
     fare_prediction_model = joblib.load("fare_sgd.pkl")
-
     y_pred = pd.DataFrame(
-        fare_prediction_model.predict(X_test_final), columns = y_test.columns, index = X_test_final.index
+        fare_prediction_model.predict(X_test_final), 
+        columns = y_test.columns, 
+        index = X_test_final.index
         )
 
     R2_score_test = fare_prediction_model.score(X_test_final, y_test)
@@ -157,42 +160,50 @@ with tab_driver:
     X = df.drop(columns = ["risk_of_delay"])
     y = df[["risk_of_delay"]]
     
-    ## traintest split
+    # traintest split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 42, stratify = y)
 
-    ## preprocess training data     
-    ## categorical encoding
+    # preprocess training data     
+    # categorical encoding
+    categorical_features = ["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]
+
     OHEX = OneHotEncoder(sparse_output = False)
-    X_train_ohe_array = OHEX.fit_transform(
-        X_train[["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]]
-    )
-    X_train_encoded = pd.DataFrame(X_train_ohe_array, columns = OHEX.get_feature_names_out(), index = X_train.index)
+    X_train_ohe_array = OHEX.fit_transform(X_train[categorical_features])
+    X_train_encoded = pd.DataFrame(
+        X_train_ohe_array, 
+        columns = OHEX.get_feature_names_out(), 
+        index = X_train.index)
     
-    ## numerical scaling
-    cols = ["hour_of_day", "ride_distance_km", "estimated_ride_time_min", 
+    # numerical scaling
+    numerical_features = ["hour_of_day", "ride_distance_km", "estimated_ride_time_min", 
         "base_fare", "surge_multiplier", "booking_value", 
         "total_assigned_rides", "accepted_rides", "driver_incomplete_rides", 
         "driver_delay_count", "driver_acceptance_rate", "driver_delay_rate",
         "avg_driver_rating", "avg_pickup_delay_min",
         "driver_delay_flag"]
-    MMS = MinMaxScaler()
-    X_train_scaled = pd.DataFrame(MMS.fit_transform(X_train[cols]), columns = cols, index = X_train.index)
     
-    ## concatinate
+    MMS = MinMaxScaler()
+    X_train_scaled = pd.DataFrame(
+        MMS.fit_transform(X_train[numerical_features]), 
+        columns = numerical_features, 
+        index = X_train.index)
+    
+    # concatinate
     X_train_final = pd.concat([X_train_scaled, X_train_encoded], axis = 1)
 
-    ## preprocess test data
-    ## categorical encoding
-    X_test_ohe_array = OHEX.transform(X_test[["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]])
-    X_test_encoded = pd.DataFrame(X_test_ohe_array, columns = OHEX.get_feature_names_out(), index = X_test.index)
+    # preprocess test data
+    # categorical encoding
+    X_test_ohe_array = OHEX.transform(X_test[categorical_features])
+    X_test_encoded = pd.DataFrame(
+        X_test_ohe_array, 
+        columns = OHEX.get_feature_names_out(), 
+        index = X_test.index)
 
-    ## numerical scaling
-    cols = ["hour_of_day", "ride_distance_km", "estimated_ride_time_min", 
-        "base_fare", "surge_multiplier", "booking_value", 
-        "total_assigned_rides", "accepted_rides", "driver_incomplete_rides", 
-        "driver_delay_count", "driver_acceptance_rate", "driver_delay_rate",
-        "avg_driver_rating", "avg_pickup_delay_min", "driver_delay_flag"]
-    X_test_scaled = pd.DataFrame(MMS.transform(X_test[cols]), columns = cols, index = X_test.index)
+    # numerical scaling
+    X_test_scaled = pd.DataFrame(
+        MMS.transform(X_test[numerical_features]), 
+        columns = numerical_features, 
+        index = X_test.index)
 
     ## concatinate
     X_test_final = pd.concat([X_test_scaled, X_test_encoded], axis = 1)
@@ -207,11 +218,9 @@ with tab_driver:
         driver_delay_prediction_model.predict(X_test_final[features]), 
         columns = y_train.columns, index = X_test_final.index
         )
-    
     F1_score_train = driver_delay_prediction_model.score(
         X_train_final[features], y_train.values.ravel()
         )
-    
     F1_score_test = driver_delay_prediction_model.score(
         X_test_final[features], y_test.values.ravel()
         )
@@ -262,62 +271,64 @@ with tab_customer:
     
     # preprocessing train data
     # categorical encoding - feature
+    categorical_features = ["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]
+
     OHEX = OneHotEncoder(sparse_output = False)
-    X_train_ohe_array = OHEX.fit_transform(X_train[["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]])
-    X_train_encoded = pd.DataFrame(X_train_ohe_array, columns = OHEX.get_feature_names_out(), index = X_train.index)
+    X_train_ohe_array = OHEX.fit_transform(X_train[categorical_features])
+    X_train_encoded = pd.DataFrame(
+        X_train_ohe_array, 
+        columns = OHEX.get_feature_names_out(), 
+        index = X_train.index)
     
     # numerical scaling - features
-    cols = ["hour_of_day", "ride_distance_km", "estimated_ride_time_min", 
+    numerical_features = ["hour_of_day", "ride_distance_km", "estimated_ride_time_min", 
             "base_fare", "surge_multiplier", "booking_value", 
             "customer_total_bookings", "customer_completed_rides", "customer_cancelled_rides", 
             "customer_incomplete_rides", "customer_cancellation_rate", "avg_customer_rating", 
             "customer_cancel_flag"
             ]
     MMS = MinMaxScaler()
-    X_train_scaled = pd.DataFrame(MMS.fit_transform(X_train[cols]), columns = cols, index = X_train.index)
+    X_train_scaled = pd.DataFrame(MMS.fit_transform(
+        X_train[numerical_features]), 
+        columns = numerical_features, 
+        index = X_train.index)
     
     # Concatinating encoded and scaled features together:
     X_train_final = pd.concat([X_train_scaled, X_train_encoded], axis = 1)
-    
     # y_train - Target label - already numerical
-    
+
     # Preprocessing Test data:
     # categorical encoding - featutres
-    X_test_ohe_array = OHEX.transform(X_test[["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]])
-    X_test_encoded = pd.DataFrame(X_test_ohe_array, columns = OHEX.get_feature_names_out(), index = X_test.index)
+    X_test_ohe_array = OHEX.transform(X_test[categorical_features])
+    X_test_encoded = pd.DataFrame(
+        X_test_ohe_array, 
+        columns = OHEX.get_feature_names_out(), 
+        index = X_test.index)
     
     # numerical scaling - features
-    cols = ["hour_of_day", "ride_distance_km", "estimated_ride_time_min", 
-            "base_fare", "surge_multiplier", "booking_value", 
-            "customer_total_bookings", "customer_completed_rides", "customer_cancelled_rides", 
-            "customer_incomplete_rides", "customer_cancellation_rate", "avg_customer_rating", 
-            "customer_cancel_flag"]
-    X_test_scaled = pd.DataFrame(MMS.transform(X_test[cols]), columns = cols, index = X_test.index)
+    X_test_scaled = pd.DataFrame(MMS.transform(
+        X_test[numerical_features]), 
+        columns = numerical_features, 
+        index = X_test.index)
     
     # Concatinate encoded and scaled features together:
     X_test_final = pd.concat([X_test_scaled, X_test_encoded], axis = 1)
-    
     # y_test - Target label - already numerical
+
+    features = ["customer_cancellation_rate", "surge_multiplier", 
+        "customer_cancelled_rides", "customer_completed_rides", 
+        "customer_cancel_flag"]
     
     customer_cancel_prediction_model = joblib.load("customer_cancellation_logreg.pkl")
     y_pred = pd.DataFrame(
-        customer_cancel_prediction_model.predict(X_test_final[[
-        "customer_cancellation_rate", "surge_multiplier", 
-        "customer_cancelled_rides", "customer_completed_rides", 
-        "customer_cancel_flag"
-        ]]), columns = y_pred.columns, index = X_test_final.index)
-    
-    F1_score_train = customer_cancel_prediction_model.score(X_train_final[[
-        "customer_cancellation_rate", "surge_multiplier", 
-        "customer_cancelled_rides", "customer_completed_rides", 
-        "customer_cancel_flag"
-        ]], y_train.values.ravel())
-    
-    F1_score_test = customer_cancel_prediction_model.score(X_test_final[[
-        "customer_cancellation_rate", "surge_multiplier", 
-        "customer_cancelled_rides", "customer_completed_rides", 
-        "customer_cancel_flag"
-        ]], y_test.values.ravel())
+        customer_cancel_prediction_model.predict(X_test_final[features]), 
+        columns = y_pred.columns, index = X_test_final.index)
+    F1_score_train = customer_cancel_prediction_model.score(
+        X_train_final[features], y_train.values.ravel()
+        )
+    F1_score_test = customer_cancel_prediction_model.score(
+        X_test_final[features], y_test.values.ravel()
+        )
     
     st.markdown('<p class="custom-subheader">CUSTOMER CANCEL PREDICTION MODEL</p>', unsafe_allow_html=True)
     st.markdown('<p class="custom-text">EVALUATION METRICS</p>', unsafe_allow_html=True)
@@ -354,12 +365,17 @@ with tab_ride_outcome:
     
     # preprocessing train data
     # categorical encoding - feature matrix
+    categorical_features = ["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]
+
     OHEX = OneHotEncoder(sparse_output = False)
-    X_train_ohe_array = OHEX.fit_transform(X_train[["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]])
-    X_train_encoded = pd.DataFrame(X_train_ohe_array, columns = OHEX.get_feature_names_out(), index = X_train.index)
+    X_train_ohe_array = OHEX.fit_transform(X_train[categorical_features])
+    X_train_encoded = pd.DataFrame(
+        X_train_ohe_array, 
+        columns = OHEX.get_feature_names_out(), 
+        index = X_train.index)
     
     # numerical scaling - feature matrix
-    cols = ["hour_of_day", "ride_distance_km", "estimated_ride_time_min", 
+    numerical_features = ["hour_of_day", "ride_distance_km", "estimated_ride_time_min", 
             "base_fare", "surge_multiplier", "booking_value", 
             "customer_total_bookings", "customer_completed_rides", "customer_cancelled_rides", 
             "customer_incomplete_rides", "customer_cancellation_rate", "avg_customer_rating", 
@@ -368,7 +384,10 @@ with tab_ride_outcome:
             "avg_driver_rating", "avg_pickup_delay_min", "customer_cancel_flag",
             "driver_delay_flag"]
     MMS = MinMaxScaler()
-    X_train_scaled = pd.DataFrame(MMS.fit_transform(X_train[cols]), columns = cols, index = X_train.index)
+    X_train_scaled = pd.DataFrame(MMS.fit_transform(
+        X_train[numerical_features]), 
+        columns = numerical_features, 
+        index = X_train.index)
     
     # Concatinating encoded and scaled features together:
     X_train_final = pd.concat([X_train_scaled, X_train_encoded], axis = 1)
@@ -376,23 +395,24 @@ with tab_ride_outcome:
     # Categorical encoding - Target label
     encoder = LabelEncoder()
     y_train_encoded_array = encoder.fit_transform(y_train.values.ravel())
-    y_train_encoded = pd.DataFrame(y_train_encoded_array, columns = y_train.columns, index = y_train.index)
+    y_train_encoded = pd.DataFrame(
+        y_train_encoded_array, 
+        columns = y_train.columns, 
+        index = y_train.index)
     
     # Preprocessing Test data:
     # categorical encoding - featutre matrix
-    X_test_ohe_array = OHEX.transform(X_test[["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]])
-    X_test_encoded = pd.DataFrame(X_test_ohe_array, columns = OHEX.get_feature_names_out(), index = X_test.index)
+    X_test_ohe_array = OHEX.transform(X_test[categorical_features])
+    X_test_encoded = pd.DataFrame(
+        X_test_ohe_array, 
+        columns = OHEX.get_feature_names_out(), 
+        index = X_test.index)
     
     # numerical scaling - feature matrix
-    cols = ["hour_of_day", "ride_distance_km", "estimated_ride_time_min", 
-            "base_fare", "surge_multiplier", "booking_value", 
-            "customer_total_bookings", "customer_completed_rides", "customer_cancelled_rides", 
-            "customer_incomplete_rides", "customer_cancellation_rate", "avg_customer_rating", 
-            "total_assigned_rides", "accepted_rides", "driver_incomplete_rides", 
-            "driver_delay_count", "driver_acceptance_rate", "driver_delay_rate",
-            "avg_driver_rating", "avg_pickup_delay_min", "customer_cancel_flag",
-            "driver_delay_flag"]
-    X_test_scaled = pd.DataFrame(MMS.transform(X_test[cols]), columns = cols, index = X_test.index)
+    X_test_scaled = pd.DataFrame(MMS.transform(
+        X_test[numerical_features]), 
+        columns = numerical_features, 
+        index = X_test.index)
     
     # Concatinate encoded and scaled features together:
     X_test_final = pd.concat([X_test_scaled, X_test_encoded], axis = 1)
@@ -400,33 +420,29 @@ with tab_ride_outcome:
     # Preprocessing Test data:
     # Categorical encoding - Target label
     y_test_encoded_array = encoder.transform(y_test.values.ravel())
-    y_test_encoded = pd.DataFrame(y_test_encoded_array, columns = y_test.columns, index = y_test.index)
+    y_test_encoded = pd.DataFrame(
+        y_test_encoded_array, 
+        columns = y_test.columns, 
+        index = y_test.index)
+    
+    features = ["customer_cancellation_rate", "surge_multiplier", "customer_incomplete_rides",
+        "customer_cancelled_rides", "driver_acceptance_rate",  
+        "driver_incomplete_rides", "customer_completed_rides", "driver_delay_rate",
+        "driver_delay_count", "traffic_level_High", "traffic_level_Low", 
+        "traffic_level_Medium"]
     
     ride_outcome_prediction_model = joblib.load("ride_outcome_logreg.pkl")
     y_pred = pd.DataFrame(
-        ride_outcome_prediction_model.predict(X_test_final
-        [["customer_cancellation_rate", "surge_multiplier", "customer_incomplete_rides",
-        "customer_cancelled_rides", "driver_acceptance_rate",  
-        "driver_incomplete_rides", "customer_completed_rides", "driver_delay_rate",
-        "driver_delay_count", "traffic_level_High", "traffic_level_Low", 
-        "traffic_level_Medium"]]
-        ), columns = y_train.columns, index = X_test_final.index)
+        ride_outcome_prediction_model.predict(X_test_final[features]), 
+        columns = y_train.columns, 
+        index = X_test_final.index)
     
-    F1_score_train = ride_outcome_prediction_model.score(X_train_final[[
-        "customer_cancellation_rate", "surge_multiplier", "customer_incomplete_rides",
-        "customer_cancelled_rides", "driver_acceptance_rate",  
-        "driver_incomplete_rides", "customer_completed_rides", "driver_delay_rate",
-        "driver_delay_count", "traffic_level_High", "traffic_level_Low", 
-        "traffic_level_Medium"
-        ]], y_train_encoded.values.ravel())
-    
-    F1_score_test = ride_outcome_prediction_model.score(X_test_final[[
-        "customer_cancellation_rate", "surge_multiplier", "customer_incomplete_rides",
-        "customer_cancelled_rides", "driver_acceptance_rate",  
-        "driver_incomplete_rides", "customer_completed_rides", "driver_delay_rate",
-        "driver_delay_count", "traffic_level_High", "traffic_level_Low", 
-        "traffic_level_Medium"
-        ]], y_test_encoded.values.ravel())
+    F1_score_train = ride_outcome_prediction_model.score(
+        X_train_final[features], y_train_encoded.values.ravel()
+        )
+    F1_score_test = ride_outcome_prediction_model.score(
+        X_test_final[features], y_test_encoded.values.ravel()
+        )
     
     st.markdown('<p class="custom-subheader">RIDE OUTCOME PREDICTION MODEL</p>', unsafe_allow_html=True)
     st.markdown('<p class="custom-text">EVALUATION METRICS</p>', unsafe_allow_html=True)
@@ -450,7 +466,7 @@ with tab_ride_outcome:
         ))
 
 # VISULAS
-with tab_visulas:
+with tab_visuals:
     chart_column1, chart_column2, chart_column3 = st.columns(3)  
     with chart_column1:
         ride_day_df = get_data("""select

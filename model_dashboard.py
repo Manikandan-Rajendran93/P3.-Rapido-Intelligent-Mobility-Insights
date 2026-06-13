@@ -8,6 +8,7 @@ import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import root_mean_squared_error
 from sklearn.metrics import classification_report
@@ -56,20 +57,23 @@ st.markdown('<p class="main-header">🚕 RAPIDO MOBILITY INSIGHTS</p>', unsafe_a
     ["FARE PREDICTION", "DRIVER DELAY PREDICTION",
     "RIDE OUTCOME PREDICTION", "CUSTOMER CANCEL PREDICTION", "VISUAL INSIGHTS"]
     )
+st.markdown("<br>", unsafe_allow_html = True)
 
 ## FARE PREDICTION ##:
 with tab_fare:
+    st.markdown("<br>", unsafe_allow_html = True)
     X = get_data("""select 
-        day_of_week, city, vehicle_type, ride_distance_km, 
-        estimated_ride_time_min, traffic_level, weather_condition, 
-        base_fare, surge_multiplier 
-        from bookings""")
+        day_of_week, city, vehicle_type, 
+        ride_distance_km, estimated_ride_time_min, traffic_level, 
+        weather_condition, base_fare, surge_multiplier 
+        from bookings
+        where booking_status = 'Completed'""")
 
-    y = get_data("select booking_value from bookings")
+    y = get_data("select booking_value from bookings where booking_status = 'Completed'")
 
     # train test split:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 42)
-
+    
     # PreProcessing Train data:
     # Encoding Categorical features
     categorical_features = ["day_of_week", "city", "vehicle_type", "traffic_level", "weather_condition"]
@@ -83,9 +87,9 @@ with tab_fare:
 
     # Scaling Numerical features:
     numerical_features = ["ride_distance_km", "estimated_ride_time_min", "base_fare", "surge_multiplier"]
-    MMS = MinMaxScaler()
+    SSC = StandardScaler()
     X_train_scaled = pd.DataFrame(
-        MMS.fit_transform(X_train[numerical_features]), 
+        SSC.fit_transform(X_train[numerical_features]), 
         columns = numerical_features, 
         index = X_train.index
         )
@@ -104,7 +108,7 @@ with tab_fare:
 
     # Scaling Numerical features:
     X_test_scaled = pd.DataFrame(
-        MMS.transform(X_test[numerical_features]), 
+        SSC.transform(X_test[numerical_features]), 
         columns = numerical_features, 
         index = X_test.index
         )
@@ -121,8 +125,8 @@ with tab_fare:
 
     R2_score_test = fare_prediction_model.score(X_test_final, y_test)
     R2_score_train = fare_prediction_model.score(X_train_final, y_train)
-    MAE = mean_absolute_error(y_pred, y_test)
-    RMSE = root_mean_squared_error(y_pred, y_test)
+    MAE = mean_absolute_error(y_test, y_pred)
+    RMSE = root_mean_squared_error(y_test, y_pred)
     percentage_errors = np.abs(y_test - y_pred) / y_test
     MdAPE = np.median(percentage_errors) * 100
 
@@ -135,25 +139,32 @@ with tab_fare:
     kpi_columns[2].metric(label = "MAE", value = f'{round(MAE, 2)} INR')
     kpi_columns[3].metric(label = "RMSE", value = f'{round(RMSE, 2)} INR')
 
+    st.divider()
+
     st.markdown('<p class="custom-text">BUSINESS INSIGHT</p>', unsafe_allow_html=True)
     kpi_columns = st.columns(1)
-    kpi_columns[0].metric(label = "MEDIAN ABSOLUTE PERCENTAGE ERROR", value = f'{round(MdAPE, 2)} %')
+    kpi_columns[0].metric(
+        label = """DIFFERENCE BETWEEN ACTUAL AND PREDICTED FARE   
+        (MEDIAN ABSOLUTE PERCENTAGE ERROR)""", 
+        value = f'{round(MdAPE, 2)} %'
+        )
 
 ## DRIVER DELAY PREDICTION ##:
 with tab_driver:
+    st.markdown("<br>", unsafe_allow_html = True)
     df = get_data("""select 
-    booking_id,	booking_timestamp, day_of_week,
-    is_weekend,	hour_of_day, city, pickup_location,	
-    drop_location,vehicle_type, ride_distance_km, 
-    estimated_ride_time_min, traffic_level, weather_condition, 
-    base_fare,surge_multiplier, booking_value, 
-    booking_status, incomplete_ride_reason, customer_id, 
-    driver_id, total_assigned_rides, accepted_rides, 
-    driver_incomplete_rides,driver_delay_count,
-    driver_acceptance_rate,driver_delay_rate,
-    avg_driver_rating, avg_pickup_delay_min,
-    driver_delay_flag
-    from combined_features""")
+        booking_id,	booking_timestamp, day_of_week,
+        is_weekend,	hour_of_day, city, pickup_location,	
+        drop_location,vehicle_type, ride_distance_km, 
+        estimated_ride_time_min, traffic_level, weather_condition, 
+        base_fare,surge_multiplier, booking_value, 
+        booking_status, incomplete_ride_reason, customer_id, 
+        driver_id, total_assigned_rides, accepted_rides, 
+        driver_incomplete_rides,driver_delay_count,
+        driver_acceptance_rate,driver_delay_rate,
+        avg_driver_rating, avg_pickup_delay_min,
+        driver_delay_flag
+        from combined_features""")
 
     df["risk_of_delay"] = (df["driver_delay_rate"] > 0.15).astype(int)
 
@@ -208,21 +219,21 @@ with tab_driver:
     ## concatinate
     X_test_final = pd.concat([X_test_scaled, X_test_encoded], axis = 1)
 
-    features = ["driver_delay_rate", "avg_driver_rating","avg_pickup_delay_min", 
+    training_features = ["driver_delay_rate", "avg_driver_rating","avg_pickup_delay_min", 
      "driver_acceptance_rate", "hour_of_day", "ride_distance_km",
      "surge_multiplier", "traffic_level_High", "estimated_ride_time_min",
      "traffic_level_Low", "traffic_level_Medium"]
 
     driver_delay_prediction_model = joblib.load("driver_delay_logreg.pkl")
     y_pred = pd.DataFrame(
-        driver_delay_prediction_model.predict(X_test_final[features]), 
+        driver_delay_prediction_model.predict(X_test_final[training_features]), 
         columns = y_train.columns, index = X_test_final.index
         )
     F1_score_train = driver_delay_prediction_model.score(
-        X_train_final[features], y_train.values.ravel()
+        X_train_final[training_features], y_train.values.ravel()
         )
     F1_score_test = driver_delay_prediction_model.score(
-        X_test_final[features], y_test.values.ravel()
+        X_test_final[training_features], y_test.values.ravel()
         )
     
     st.markdown('<p class="custom-subheader">DRIVER DELAY PREDICTION MODEL</p>', unsafe_allow_html=True)
@@ -239,7 +250,7 @@ with tab_driver:
     st.dataframe(classification_report_driver)
 
     st.markdown('<p class="custom-text">CONFUSION MATRIX</p>', unsafe_allow_html=True)
-    cm = confusion_matrix(y_pred, y_test)
+    cm = confusion_matrix(y_test, y_pred)
     st.dataframe(pd.DataFrame(
         cm, 
         columns = ["Predicted: No Risk", "Predicted: Risk"], 
@@ -248,6 +259,7 @@ with tab_driver:
 
 ## CUSTOMER CANCEL PREDICTION ##    
 with tab_customer:
+    st.markdown("<br>", unsafe_allow_html = True)
     df = get_data("""select 
         booking_id,	booking_timestamp, day_of_week,
         is_weekend,	hour_of_day, city, pickup_location,	drop_location,
@@ -287,8 +299,8 @@ with tab_customer:
             "customer_incomplete_rides", "customer_cancellation_rate", "avg_customer_rating", 
             "customer_cancel_flag"
             ]
-    MMS = MinMaxScaler()
-    X_train_scaled = pd.DataFrame(MMS.fit_transform(
+    SSC = StandardScaler()
+    X_train_scaled = pd.DataFrame(SSC.fit_transform(
         X_train[numerical_features]), 
         columns = numerical_features, 
         index = X_train.index)
@@ -306,7 +318,7 @@ with tab_customer:
         index = X_test.index)
     
     # numerical scaling - features
-    X_test_scaled = pd.DataFrame(MMS.transform(
+    X_test_scaled = pd.DataFrame(SSC.transform(
         X_test[numerical_features]), 
         columns = numerical_features, 
         index = X_test.index)
@@ -315,19 +327,19 @@ with tab_customer:
     X_test_final = pd.concat([X_test_scaled, X_test_encoded], axis = 1)
     # y_test - Target label - already numerical
 
-    features = ["customer_cancellation_rate", "surge_multiplier", 
+    training_features = ["customer_cancellation_rate", "surge_multiplier", 
         "customer_cancelled_rides", "customer_completed_rides", 
         "customer_cancel_flag"]
     
     customer_cancel_prediction_model = joblib.load("customer_cancellation_logreg.pkl")
     y_pred = pd.DataFrame(
-        customer_cancel_prediction_model.predict(X_test_final[features]), 
+        customer_cancel_prediction_model.predict(X_test_final[training_features]), 
         columns = y_pred.columns, index = X_test_final.index)
     F1_score_train = customer_cancel_prediction_model.score(
-        X_train_final[features], y_train.values.ravel()
+        X_train_final[training_features], y_train.values.ravel()
         )
     F1_score_test = customer_cancel_prediction_model.score(
-        X_test_final[features], y_test.values.ravel()
+        X_test_final[training_features], y_test.values.ravel()
         )
     
     st.markdown('<p class="custom-subheader">CUSTOMER CANCEL PREDICTION MODEL</p>', unsafe_allow_html=True)
@@ -344,7 +356,7 @@ with tab_customer:
     st.dataframe(classification_report_customer)
     
     st.markdown('<p class="custom-text">CONFUSION MATRIX</p>', unsafe_allow_html=True)
-    cm = confusion_matrix(y_pred, y_test)
+    cm = confusion_matrix(y_test, y_pred)
     st.dataframe(pd.DataFrame(
         cm, 
         columns = ["Predicted: No Risk", "Predicted: Risk"], 
@@ -353,6 +365,7 @@ with tab_customer:
 
 ## RIDE OUTCOME PREDICTION ##    
 with tab_ride_outcome:
+    st.markdown("<br>", unsafe_allow_html = True)
     ## import data from sql
     df = get_data("select * from combined_features")
     X = df.drop(columns = ["booking_status"])
@@ -383,8 +396,8 @@ with tab_ride_outcome:
             "driver_delay_count", "driver_acceptance_rate", "driver_delay_rate",
             "avg_driver_rating", "avg_pickup_delay_min", "customer_cancel_flag",
             "driver_delay_flag"]
-    MMS = MinMaxScaler()
-    X_train_scaled = pd.DataFrame(MMS.fit_transform(
+    SSC = StandardScaler()
+    X_train_scaled = pd.DataFrame(SSC.fit_transform(
         X_train[numerical_features]), 
         columns = numerical_features, 
         index = X_train.index)
@@ -409,7 +422,7 @@ with tab_ride_outcome:
         index = X_test.index)
     
     # numerical scaling - feature matrix
-    X_test_scaled = pd.DataFrame(MMS.transform(
+    X_test_scaled = pd.DataFrame(SSC.transform(
         X_test[numerical_features]), 
         columns = numerical_features, 
         index = X_test.index)
@@ -425,7 +438,7 @@ with tab_ride_outcome:
         columns = y_test.columns, 
         index = y_test.index)
     
-    features = ["customer_cancellation_rate", "surge_multiplier", "customer_incomplete_rides",
+    training_features = ["customer_cancellation_rate", "surge_multiplier", "customer_incomplete_rides",
         "customer_cancelled_rides", "driver_acceptance_rate",  
         "driver_incomplete_rides", "customer_completed_rides", "driver_delay_rate",
         "driver_delay_count", "traffic_level_High", "traffic_level_Low", 
@@ -433,15 +446,15 @@ with tab_ride_outcome:
     
     ride_outcome_prediction_model = joblib.load("ride_outcome_logreg.pkl")
     y_pred = pd.DataFrame(
-        ride_outcome_prediction_model.predict(X_test_final[features]), 
+        ride_outcome_prediction_model.predict(X_test_final[training_features]), 
         columns = y_train.columns, 
         index = X_test_final.index)
     
     F1_score_train = ride_outcome_prediction_model.score(
-        X_train_final[features], y_train_encoded.values.ravel()
+        X_train_final[training_features], y_train_encoded.values.ravel()
         )
     F1_score_test = ride_outcome_prediction_model.score(
-        X_test_final[features], y_test_encoded.values.ravel()
+        X_test_final[training_features], y_test_encoded.values.ravel()
         )
     
     st.markdown('<p class="custom-subheader">RIDE OUTCOME PREDICTION MODEL</p>', unsafe_allow_html=True)
@@ -458,7 +471,7 @@ with tab_ride_outcome:
     st.dataframe(classification_report_ride_outcome)
 
     st.markdown('<p class="custom-text">CONFUSION MATRIX</p>', unsafe_allow_html=True)
-    cm = confusion_matrix(y_pred, y_test_encoded)
+    cm = confusion_matrix(y_test_encoded, y_pred)
     st.dataframe(pd.DataFrame(
         cm, 
         columns = ["Predicted: Cancelled", "Predicted: Completed", "Predicted: Incomplete"], 
@@ -467,6 +480,8 @@ with tab_ride_outcome:
 
 # VISULAS
 with tab_visuals:
+    st.markdown("<br>", unsafe_allow_html = True)
+
     chart_column1, chart_column2, chart_column3 = st.columns(3)  
     with chart_column1:
         ride_day_df = get_data("""select
@@ -518,7 +533,7 @@ with tab_visuals:
     st.divider()
 
     chart_column1, chart_column2, chart_column3 = st.columns(3)  
-        
+      
     with chart_column1:
         cancel_traffic_df = get_data("""select
         traffic_level, 
@@ -572,9 +587,9 @@ with tab_visuals:
 
     st.divider()
 
-    coulumn_chart1 = st.columns(1)
+    chart_column, = st.columns(1)
 
-    with chart_column1:
+    with chart_column:
         fare_distance_df = get_data("""select
         booking_value, 
         ride_distance_km
